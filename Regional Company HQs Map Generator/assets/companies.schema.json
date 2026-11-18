@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://workbuddy.local/skills/regional-company-hqs-map-generator/companies.schema.json",
+  "title": "区域头部企业总部地图数据集",
+  "type": "object",
+  "required": ["region", "companies"],
+  "additionalProperties": false,
+  "properties": {
+    "region": {
+      "type": "string",
+      "minLength": 1,
+      "description": "目标国家或地区，页面标题与导出文件名使用"
+    },
+    "title": {
+      "type": "string",
+      "description": "地图主标题；缺省时自动生成「<region> · 头部企业总部分布图」"
+    },
+    "subtitle": {
+      "type": "string",
+      "description": "副标题，建议注明数据口径与年份"
+    },
+    "map": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "topoUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "已弃用：仅作历史来源标注，运行时不会请求。底图由 build_map.py 在构建期从 assets/topo/ 或 --topo-file 内嵌"
+        },
+        "topoFile": {
+          "type": "string",
+          "description": "可选：自定义 TopoJSON 路径，等价于 build_map.py --topo-file。涉及中国领土轮廓时必须指向符合国家标准与审图要求的合规边界数据"
+        },
+        "object": {
+          "type": "string",
+          "description": "TopoJSON objects 中的键名，如 countries / states；缺省时取第一个键"
+        },
+        "match": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "按 properties.name / NAME 过滤要素；留空表示使用全部要素。例：[\"Japan\"]"
+        },
+        "padding": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "fitExtent 内边距 [top, right, bottom, left]，默认 [70, 60, 70, 60]"
+        },
+        "sourceLabel": {
+          "type": "string",
+          "description": "页脚显示的底图来源标注"
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clusterWidth": {
+          "type": "number",
+          "minimum": 120,
+          "maximum": 360,
+          "description": "单个城市集群卡片宽度（px），默认 240；出现重叠时优先调小此值"
+        },
+        "ring": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "四周环绕布局参数；企业 Logo 集群按上/右/下/左四边均衡分配，不再只排左右两列",
+          "properties": {
+            "pad": { "type": "number", "minimum": 0, "description": "四周卡片到画布边缘的距离（px），默认 18" },
+            "gap": { "type": "number", "minimum": 0, "description": "同边相邻卡片的最小间距（px），默认 12" }
+          }
+        }
+      }
+    },
+    "inset": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "单一城市占比 > 35% 时必须为 true"
+        },
+        "city": {
+          "type": "string",
+          "description": "特写放大的城市名，须与某条 company.city 完全一致"
+        },
+        "label": {
+          "type": "string",
+          "description": "特写面板标题，如「东京都市圈 · 放大特写」"
+        }
+      }
+    },
+    "companies": {
+      "type": "array",
+      "minItems": 20,
+      "maxItems": 100,
+      "description": "收录企业，严格 20–100 家",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "city", "coords", "industry"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "description": "唯一标识，建议小写英文连字符" },
+          "name": { "type": "string", "minLength": 1, "description": "英文/国际通用名" },
+          "local_name": { "type": "string", "description": "当地语言全称" },
+          "city": { "type": "string", "minLength": 1, "description": "地理集群名（城市级），同城企业必须使用完全相同的字符串" },
+          "prefecture": { "type": "string", "description": "详细行政区，如「爱知县」「山口县」" },
+          "coords": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "[经度, 纬度]，WGS84 十进制度；若使用国内合规底图须按该底图坐标系填写"
+          },
+          "industry": { "type": "string", "minLength": 1, "description": "标准行业分类，用于筛选与名录分组" },
+          "metric": { "type": "string", "description": "核心地位标签，如「全球销量第一」「市值约 2000 亿美元」" },
+          "desc": { "type": "string", "description": "一句话业务简介" },
+          "brandColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "品牌标准色 HEX" },
+          "wordmark": { "type": "string", "description": "品牌标准字（如 TOYOTA / SONY），仅用于 fetch_logos.py 派生候选 slug 与详情信息；页面不显示该文字标签" },
+          "logoStyle": { "type": "string", "enum": ["sans", "serif", "heavy", "italic"], "description": "已弃用，仅为向后兼容保留；模板不再渲染文字徽标" },
+          "mark": { "type": "string", "description": "已弃用，仅为向后兼容保留；严禁用首字母作 Logo" },
+          "markShape": { "type": "string", "enum": ["square", "circle", "diamond"], "description": "已弃用，仅为向后兼容保留" },
+          "logoFile": { "type": "string", "description": "真实官方 Logo 本地路径（相对 dataset.json 目录或绝对路径）；由 embed_logos.py 内嵌为 data URI，伪 Logo 会被拒绝" },
+          "logoUrl": { "type": "string", "format": "uri", "description": "官方 Logo 直链；仅在 --download-logos 时下载内嵌，失败则显示中性占位" },
+          "logoSlug": { "type": "string", "description": "worldvectorlogo CDN 的官方 Logo slug，供 fetch_logos.py 精确抓取" },
+          "logoSlugs": { "type": "array", "items": { "type": "string" }, "description": "多个候选 slug，按优先级尝试；命中即停" },
+          "logoDataUri": { "type": "string", "description": "由 embed_logos.py 注入的 data:image/... 官方 Logo 内嵌图；禁止外链图片，禁止含文字节点的拼装牌 / 64×20 字母牌 / 重复 viewBox 的无效 SVG。留空时模板显示无字母无文字的中性占位" },
+          "metro": {
+            "type": "string",
+            "description": "所属都会区 / 城市群（如「东京都市圈」「旧金山湾区」）。用于都会区集中度统计与右下区块分组；留空时以 city 兜底"
+          },
+          "outlying": {
+            "type": "string",
+            "description": "所属离岛 / 飞地分组（如「冲绳群岛」「夏威夷」「阿拉斯加」「加里宁格勒」）。非空即进入左下区块，且不再出现在外围集群中"
+          }
+        }
+      }
+    },
+    "panels": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "左下离岛/飞地区块与右下都会区区块配置；省略时模板按字段自动识别",
+      "properties": {
+        "outlying": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "description": "默认自动；显式设为 false 且存在离岛企业时会被校验拦截" },
+            "label": { "type": "string", "description": "区块标题" },
+            "groups": {
+              "type": "array",
+              "description": "可选：显式分组，按 cities 收集企业；省略时按 company.outlying 自动分组",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "description": "分组名，同时作为小地图标题" },
+                  "cities": { "type": "array", "items": { "type": "string" }, "description": "归入该分组的 city 值" },
+                  "label": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "metro": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "description": "默认自动（占比 > threshold 时启用）；显式 false 且占比超阈值时会被校验拦截" },
+            "threshold": { "type": "number", "minimum": 0, "maximum": 1, "description": "都会区触发阈值，默认 0.35" },
+            "target": { "type": "string", "description": "指定都会区分组键；省略时自动取企业数最多的分组" },
+            "keys": { "type": "array", "items": { "type": "string" }, "description": "都会区包含的分组键（metro 或 city 值），优先于自动识别" },
+            "layoutMode": {
+              "type": "string",
+              "enum": ["auto", "cols4", "cols-4", "cols2", "cols-2"],
+              "description": "区块内 Logo 排列：auto（默认）按整体均匀与避免局部拥挤在 4 列横向与 2 列纵向间自动择优；cols4 / cols2 为强制指定"
+            },
+            "label": { "type": "string", "description": "区块标题" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "recommended_threshold": 0.5,
+  "should_trigger": [
+    { "text": "帮我做一张日本 Top 50 企业的总部地理分布信息图，每家都要显示品牌 logo。", "family": "core_build" },
+    { "text": "生成德国头部企业总部地图，把官方 Logo 也放上去，最后能导出高清 PNG。", "family": "core_build" },
+    { "text": "美国各州头部品牌分布图，离岛/飞地和都会区要单独标注并列出企业。", "family": "dual_panel" },
+    { "text": "已有的企业总部地图里缺 logo，帮我补上官方 logo，不要再出现外链图片。", "family": "logo_fix" },
+    { "text": "优化这个企业地图，补左下方离岛飞地区块和占比超过 35% 的都会区特写。", "family": "dual_panel_fix" },
+    { "text": "给我一份加州前 40 家公司的总部地图 HTML，单文件、可交互。", "family": "core_build" },
+    { "text": "画一张中国长三角企业总部分布图，中心城市群要做放大特写。", "family": "metro_fix" },
+    { "text": "我生成的头部企业总部地图在预览里提示「地图数据加载失败：Failed to fetch」，底图降级了，帮我修好这张企业分布图。", "family": "map_load_fix" },
+    { "text": "企业总部地图里很多 logo 还是首字母大写，改成只显示真实官方 logo，不要企业文字名称。", "family": "logo_authenticity" },
+    { "text": "优化企业总部分布图：logo 要沿地图四周均匀排列，别都挤在左右两侧。", "family": "ring_layout" },
+    { "text": "企业总部地图右下都会区的 logo 改成 4 列横向或 2 列纵向自动二选一，避免局部拥挤。", "family": "metro_layout_mode" }
+  ],
+  "should_not_trigger": [
+    { "text": "帮我设计一个品牌 logo，要简洁有科技感。", "family": "logo_design" },
+    { "text": "把这份企业名单翻译成英文并写一段摘要。", "family": "translate" },
+    { "text": "从东京站到成田机场怎么走，给我导航路线规划。", "family": "routing" },
+    { "text": "用柱状图展示这 20 家公司的营收对比。", "family": "generic_chart" },
+    { "text": "写一篇关于日本企业经营模式的公众号文章。", "family": "writing" }
+  ],
+  "near_neighbor": [
+    { "text": "帮我做一张日本行政区划地图，只要轮廓不要企业信息。", "family": "plain_map" },
+    { "text": "做一个公司组织架构图，标出部门汇报关系。", "family": "org_chart" },
+    { "text": "统计这 20 家企业的营收并做成表格。", "family": "table_only" },
+    { "text": "解释一下 TopoJSON 和 GeoJSON 的区别。", "family": "concept_explain" }
+  ]
+}

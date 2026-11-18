@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__REGION_NAME__ · 头部企业总部分布图</title>
+<style>
+  :root {
+    --ink: #2B3033;
+    --ink-soft: #6B7280;
+    --line: #B6BCC0;
+    --land: #C6CCCE;
+    --land-stroke: #9CA3AF;
+    --paper: #FAFAFA;
+    --card: #FFFFFF;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #F2F4F5; color: var(--ink); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+  .app { max-width: 1280px; margin: 0 auto; padding: 24px 20px 40px; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
+  .titles { flex: 1 1 420px; }
+  .titles h1 { font-size: 26px; font-weight: 600; letter-spacing: .5px; margin: 0 0 6px; }
+  .titles .sub { font-size: 13px; font-weight: 300; color: var(--ink-soft); line-height: 1.4; margin: 0; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  select, button.btn {
+    font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px;
+    border: 1px solid #D8DDE0; background: var(--card); color: var(--ink); cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  select:hover, button.btn:hover { border-color: #9CA3AF; }
+  button.btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .badge { font-size: 12px; font-weight: 400; padding: 7px 11px; border-radius: 999px; border: 1px solid transparent; }
+  .badge.ok { background: #EAF4EE; color: #1F7A47; border-color: #CDE8D8; }
+  .badge.warn { background: #FDF0EC; color: #A33C22; border-color: #F5D5C9; }
+
+  #error-banner {
+    display: none; margin: 0 0 14px; padding: 11px 14px; border-radius: 8px;
+    background: #FFF6E8; border: 1px solid #F0D9AC; color: #8A5A12; font-size: 13px; line-height: 1.5;
+  }
+
+  .stage-wrap { width: 100%; overflow-x: auto; }
+  #stage {
+    position: relative; width: 1200px; height: 980px; background: var(--paper);
+    border: 1px solid #E7EAEC; border-radius: var(--radius); overflow: hidden;
+  }
+  #map-svg { position: absolute; inset: 0; width: 1200px; height: 980px; }
+  #map-svg .land { fill: var(--land); stroke: var(--land-stroke); stroke-width: 1.2; stroke-linejoin: round; }
+  #map-svg .leader { fill: none; stroke: var(--line); stroke-width: 1.1; }
+  #map-svg .anchor { fill: #7C858B; opacity: .85; }
+  #map-svg .viewport { fill: none; stroke: #8B949A; stroke-width: 1.2; stroke-dasharray: 5 4; }
+  #map-svg .panel-link { fill: none; stroke: #A9B0B4; stroke-width: 1; stroke-dasharray: 4 4; }
+
+  /* 外围城市集群：地图四周均匀环绕 */
+  #clusters { position: absolute; inset: 0; pointer-events: none; }
+  .cluster {
+    position: absolute; pointer-events: auto;
+    background: rgba(255,255,255,.9); border-radius: 8px; padding: 6px 8px;
+  }
+  .cluster-name {
+    font-size: 12.5px; font-weight: 300; color: #5C6469;
+    line-height: 1.1; letter-spacing: .3px; margin: 0 0 6px; white-space: nowrap;
+  }
+  .cluster.edge-top .cluster-name, .cluster.edge-bottom .cluster-name { text-align: center; }
+  .cluster.edge-left .cluster-name { text-align: right; }
+  .cluster.edge-right .cluster-name { text-align: left; }
+  .cluster-name .cnt { font-size: 10px; color: #A2A9AD; margin-left: 4px; }
+  .cluster-logos { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+
+  /* Logo 磁贴：只显示官方 Logo 图，绝不显示文字名称或首字母占位 */
+  .logo-chip, .logo-tile {
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid #E3E7E9; border-radius: 6px; background: #fff;
+    cursor: pointer; padding: 3px; white-space: nowrap;
+    transition: opacity .18s, filter .18s, transform .12s;
+  }
+  .logo-chip:hover, .logo-tile:hover { transform: translateY(-1px); border-color: #B9C0C4; }
+  .logo-chip { width: 54px; height: 36px; }
+  .logo-tile { width: 100%; height: 42px; }
+  .logo-chip.dim, .logo-tile.dim { opacity: .2; filter: grayscale(100%); }
+  .logo-img { display: block; width: 100%; height: 100%; object-fit: contain; background: transparent; }
+  /* 缺图：无字母、无文字的中性几何标记 */
+  .logo-missing {
+    display: block; width: 100%; height: 100%; border-radius: 4px; opacity: .8;
+    background: repeating-linear-gradient(45deg, #F4F6F7 0 4px, #E8ECEE 4px 8px);
+  }
+
+  /* 左下离岛/飞地、右下都会区 双区块 */
+  .panel {
+    position: absolute; bottom: 22px; width: 306px; padding: 9px 11px 10px;
+    background: rgba(255,255,255,.96); border: 1px solid #DFE3E5; border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(30,40,45,.04); display: none;
+  }
+  #panel-outlying { left: 22px; }
+  #panel-metro { right: 22px; }
+  .panel-head {
+    font-size: 11.5px; font-weight: 300; color: #5C6469; line-height: 1.1;
+    letter-spacing: .3px; margin-bottom: 6px; display: flex; justify-content: space-between;
+  }
+  .panel-head .cnt { color: #A2A9AD; font-size: 10px; }
+  .panel-group + .panel-group { margin-top: 7px; padding-top: 7px; border-top: 1px dashed #E7EAEC; }
+  .group-title { font-size: 10.5px; font-weight: 300; color: #8A9297; line-height: 1.1; margin-bottom: 3px; }
+  .mini-map { display: block; width: 100%; height: 72px; background: #F7F8F9; border-radius: 5px; margin-bottom: 5px; }
+  #panel-metro .mini-map { height: 92px; }
+  .mini-map .land { fill: var(--land); stroke: var(--land-stroke); stroke-width: 1; }
+  .mini-map .anchor { fill: #6B7378; }
+  .mini-map .frame { fill: none; stroke: #B4BBC0; stroke-width: 1; stroke-dasharray: 4 3; }
+  /* 两套可选布局：4 列横向 / 2 列纵向 */
+  .panel-logos { display: grid; gap: 6px; align-content: start; }
+  .panel-logos.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .panel-logos.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel-logos.cols-2 .logo-tile { height: 46px; }
+
+  /* 底部说明栏独占 FOOTER_RESERVE 净空带：x 避开左右区块，y 位于下边集群带之下 */
+  .stage-footer {
+    position: absolute; left: 342px; width: 516px; bottom: 8px; text-align: center;
+    font-size: 10.5px; font-weight: 300; color: #9AA1A5; line-height: 1.5;
+    pointer-events: none;
+  }
+  .stage-footer strong { font-weight: 400; color: #7C858B; }
+
+  /* Modal */
+  #modal-mask { position: fixed; inset: 0; background: rgba(24,28,30,.42); display: none; z-index: 40; }
+  #modal {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 41;
+    width: min(460px, 90vw); background: #fff; border-radius: 12px; padding: 24px 26px;
+    box-shadow: 0 18px 60px rgba(0,0,0,.18); display: none;
+  }
+  #modal .logo-large { width: 168px; height: 84px; margin-bottom: 12px; }
+  #modal .logo-large .logo-img { width: 100%; height: 100%; object-fit: contain; }
+  #modal .m-brand { width: 34px; height: 6px; border-radius: 3px; margin-bottom: 14px; }
+  #modal h2 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  #modal .m-local { font-size: 12px; font-weight: 300; color: var(--ink-soft); margin: 0 0 16px; }
+  #modal dl { display: grid; grid-template-columns: 68px 1fr; gap: 9px 12px; font-size: 13px; margin: 0 0 14px; }
+  #modal dt { font-weight: 300; color: var(--ink-soft); }
+  #modal dd { margin: 0; font-weight: 400; }
+  #modal .m-desc { font-size: 13px; line-height: 1.7; color: #4B5358; font-weight: 300; }
+  #modal .m-close { position: absolute; right: 14px; top: 12px; border: none; background: none; font-size: 20px; color: #99A0A4; cursor: pointer; }
+
+  /* Drawer */
+  #drawer {
+    position: fixed; right: 0; top: 0; bottom: 0; width: min(380px, 92vw); background: #fff;
+    box-shadow: -8px 0 30px rgba(0,0,0,.12); z-index: 45; transform: translateX(100%);
+    transition: transform .22s ease; display: flex; flex-direction: column;
+  }
+  #drawer.open { transform: translateX(0); }
+  #drawer .d-head { padding: 18px 20px; border-bottom: 1px solid #ECEFF1; display: flex; align-items: center; justify-content: space-between; }
+  #drawer .d-head h3 { font-size: 16px; font-weight: 600; margin: 0; }
+  #drawer .d-head button { border: none; background: none; font-size: 20px; cursor: pointer; color: #99A0A4; }
+  #drawer .d-body { flex: 1; overflow-y: auto; padding: 14px 20px 28px; }
+  #drawer .d-group { margin-bottom: 16px; }
+  #drawer .d-group h4 { font-size: 11px; font-weight: 400; color: #9AA1A5; letter-spacing: 1px; margin: 0 0 8px; }
+  #drawer .d-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #EEF1F2; font-size: 12.5px; cursor: pointer; }
+  #drawer .d-item:hover { color: #1D6FA5; }
+  #drawer .d-item .d-name { display: inline-flex; align-items: center; gap: 6px; }
+  #drawer .d-item span:last-child { font-weight: 300; color: var(--ink-soft); white-space: nowrap; }
+  .logo-tiny { display: inline-flex; width: 30px; height: 22px; align-items: center; justify-content: center; }
+  .logo-tiny .logo-img { width: 100%; height: 100%; object-fit: contain; }
+
+  #toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 60;
+    background: #2B3033; color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 12.5px;
+    opacity: 0; pointer-events: none; transition: opacity .2s; }
+  #toast.show { opacity: 1; }
+  @media (max-width: 700px) { .titles h1 { font-size: 20px; } .app { padding: 16px 10px 28px; } }
+</style>
+<!-- 第三方库与底图 TopoJSON 均由 scripts/build_map.py 在构建期内联，页面运行时零网络请求。 -->
+__VENDOR_LIBS__
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="titles">
+      <h1 id="page-title">__REGION_NAME__ · 头部企业总部分布图</h1>
+      <p class="sub" id="page-sub">按法定注册地 / 核心运营总部标注 · 单击查看企业详情</p>
+    </div>
+    <div class="controls">
+      <select id="industry-filter" aria-label="行业筛选"><option value="">全部行业</option></select>
+      <button class="btn" id="btn-list">完整名录</button>
+      <button class="btn" id="btn-check">重叠自检</button>
+      <button class="btn primary" id="btn-export">导出 PNG (2×)</button>
+      <span class="badge ok" id="overlap-badge">零遮挡 ✓</span>
+    </div>
+  </header>
+
+  <div id="error-banner"></div>
+  <div id="self-check-report" hidden></div>
+
+  <div class="stage-wrap">
+    <div id="stage">
+      <svg id="map-svg" viewBox="0 0 1200 980" preserveAspectRatio="xMidYMid meet" aria-label="企业总部地理分布底图"></svg>
+      <div id="clusters"></div>
+      <div class="panel" id="panel-outlying"></div>
+      <div class="panel" id="panel-metro"></div>
+      <div class="stage-footer" id="stage-footer"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-mask"></div>
+<div id="modal">
+  <button class="m-close" aria-label="关闭">×</button>
+  <div class="logo-large" id="m-logo"></div>
+  <div class="m-brand" id="m-brand"></div>
+  <h2 id="m-name"></h2>
+  <p class="m-local" id="m-local"></p>
+  <dl>
+    <dt>总部</dt><dd id="m-hq"></dd>
+    <dt>行业</dt><dd id="m-industry"></dd>
+    <dt>地位</dt><dd id="m-metric"></dd>
+    <dt>坐标</dt><dd id="m-coords"></dd>
+  </dl>
+  <p class="m-desc" id="m-desc"></p>
+</div>
+
+<aside id="drawer">
+  <div class="d-head"><h3 id="d-title">完整名录</h3><button aria-label="关闭名录">×</button></div>
+  <div class="d-body" id="d-body"></div>
+</aside>
+<div id="toast"></div>
+
+<script>
+/* 数据、官方 Logo、底图 TopoJSON 与第三方库全部由 scripts/build_map.py 在构建期内联。
+   页面运行时不调用 fetch、不加载任何外链资源：WorkBuddy 预览的严格 CSP 会拦截 data: 与 CDN 请求。
+   Logo 契约：只渲染真实官方 Logo 图；缺失时显示无字母、无文字的中性标记，
+   绝不生成首字母色块或文字字标冒充 Logo。 */
+const MAP_DATA       = __MAP_DATA__;
+const EMBEDDED_TOPO  = __TOPO_DATA__;
+const REGION         = __REGION_JS__;
+
+const W = 1200, H = 980;
+/* 画布底部保留给两行说明栏的净空：8px 底距 + 约 32px 文字 + 12px 与集群的间隔 */
+const FOOTER_RESERVE = 52;
+const STAGE = document.getElementById('stage');
+const SVG   = document.getElementById('map-svg');
+const CL    = document.getElementById('clusters');
+const ALL   = MAP_DATA.companies || [];
+const PANEL_CFG = MAP_DATA.panels || {};
+const RING = Object.assign({ pad: 18, gap: 12 }, (MAP_DATA.layout && MAP_DATA.layout.ring) || {});
+const state = {
+  projection: null, features: [], allFeatures: [], clusters: [], lines: [],
+  panels: [], panelIds: new Set(), viewports: [], viewportSkipped: [], mapOK: false, degraded: false,
+  ringLayout: null, metroLayout: null
+};
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2200); };
+function banner(msg) { const b = document.getElementById('error-banner'); b.style.display = 'block'; b.innerHTML = msg; }
+function rectOf(el) { const r = el.getBoundingClientRect(), s = STAGE.getBoundingClientRect();
+  return { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height }; }
+function validColor(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : '#4B5563'; }
+function centroid(list) {
+  const pts = list.map(c => c.coords).filter(p => Array.isArray(p) && p.length === 2);
+  if (!pts.length) return [0, 0];
+  return [pts.reduce((s, p) => s + +p[0], 0) / pts.length, pts.reduce((s, p) => s + +p[1], 0) / pts.length];
+}
+const hasOfficialLogo = c => typeof c.logoDataUri === 'string' && c.logoDataUri.indexOf('data:image/') === 0;
+
+function showLibraryError() {
+  const missing = [];
+  if (!window.d3) missing.push('D3.js');
+  if (!window.topojson) missing.push('topojson-client');
+  if (!window.html2canvas) missing.push('html2canvas');
+  if (missing.length) banner('<strong>依赖未内嵌：</strong>' + esc(missing.join('、')) +
+    '。请用 scripts/build_map.py 重新构建 HTML（依赖应在构建期写入页面，不依赖网络）；企业名录与详情仍可正常浏览。');
+  return missing.length === 0;
+}
+
+/* ── Logo：只显示官方原图；按比例 contain，固定盒尺寸避免异步撑高布局 ── */
+function logoFace(c) {
+  if (hasOfficialLogo(c)) return `<img class="logo-img" src="${esc(c.logoDataUri)}" alt="" aria-hidden="true">`;
+  return `<span class="logo-missing" role="img" aria-label="暂无官方 Logo"></span>`;
+}
+function logoChip(c) {
+  return `<button class="logo-chip" data-id="${esc(c.id)}" title="${esc(c.name)}">${logoFace(c)}</button>`;
+}
+function logoTile(c) {
+  return `<button class="logo-tile" data-id="${esc(c.id)}" title="${esc(c.name)}">${logoFace(c)}</button>`;
+}
+
+/* ── 底图：直接读取构建期内嵌的 TopoJSON，禁止任何运行时网络请求 ── */
+async function loadGeometry() {
+  if (!window.d3 || !window.topojson) { showLibraryError(); return null; }
+  const cfg = MAP_DATA.map || {};
+  try {
+    const topo = EMBEDDED_TOPO;
+    if (!topo || topo.type !== 'Topology' || !topo.objects || !Object.keys(topo.objects).length)
+      throw new Error('底图 TopoJSON 未内嵌（请用 build_map.py 生成页面，勿直接打开模板）');
+    const objName = cfg.object || Object.keys(topo.objects)[0];
+    if (!topo.objects[objName]) throw new Error('TopoJSON 中缺少 object「' + objName + '」');
+    const fc = topojson.feature(topo, topo.objects[objName]);
+    const list = fc.type === 'FeatureCollection' ? fc.features : [fc];
+    const match = (cfg.match || []).map(s => String(s).toLowerCase());
+    const picked = match.length
+      ? list.filter(f => match.includes(String((f.properties && (f.properties.name || f.properties.NAME)) || '').toLowerCase()))
+      : list;
+    if (!picked.length) throw new Error('TopoJSON 中未匹配到任何要素（检查 map.match / map.object）');
+    return { picked: { type: 'FeatureCollection', features: picked }, all: list };
+  } catch (e) {
+    const pts = ALL.map(c => c.coords).filter(Boolean);
+    banner('<strong>底图数据无效：</strong>' + esc(e.message) +
+      '。请用 <code>build_map.py</code> 重新构建，必要时用 <code>--topo-file</code> 指定合规底图；当前降级为「仅坐标定位」模式。');
+    return pts.length ? { picked: { type: 'MultiPoint', coordinates: pts, __degraded: true }, all: [] } : null;
+  }
+}
+function buildProjection(fc) {
+  const p = (MAP_DATA.map && MAP_DATA.map.padding) || [70, 60, 70, 60];
+  return d3.geoMercator().fitExtent([[p[3], p[0]], [W - p[1], H - p[2]]], fc);
+}
+function drawBase(packed) {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('class', 'base-layer');
+  const fc = packed.picked;
+  state.degraded = !!fc.__degraded;
+  if (!state.degraded) {
+    const path = d3.geoPath(state.projection);
+    fc.features.forEach(f => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      el.setAttribute('d', path(f)); el.setAttribute('class', 'land'); g.appendChild(el);
+    });
+  }
+  SVG.appendChild(g);
+  state.features = state.degraded ? [] : fc.features;
+  state.allFeatures = packed.all || [];
+  state.mapOK = !state.degraded;
+}
+
+/* ── 右下：都会区 / 城市群（占比 > 35%） ── */
+function detectMetro() {
+  const legacy = MAP_DATA.inset || {};
+  const cfg = Object.assign(
+    legacy.enabled ? { enabled: !!legacy.enabled, target: legacy.city, label: legacy.label } : {},
+    PANEL_CFG.metro || {}
+  );
+  if (cfg.enabled === false) return null;
+  const counts = {};
+  ALL.forEach(c => { const k = c.metro || c.city; if (k) counts[k] = (counts[k] || 0) + 1; });
+  const keys = (cfg.keys && cfg.keys.length) ? cfg.keys : null;
+  const top = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  const target = cfg.target || (keys ? keys[0] : top);
+  const threshold = typeof cfg.threshold === 'number' ? cfg.threshold : 0.35;
+  const share = keys
+    ? ALL.filter(c => keys.includes(c.metro || c.city)).length / Math.max(ALL.length, 1)
+    : (counts[target] || 0) / Math.max(ALL.length, 1);
+  if (!cfg.force && share <= threshold) return null;
+  const companies = ALL.filter(c => !c.outlying && (keys ? keys.includes(c.metro || c.city) : (c.metro || c.city) === target));
+  if (!companies.length) return null;
+  return { name: target, label: cfg.label || `${target} · 都会区特写`, companies, share };
+}
+
+/* ── 左下：离岛 / 飞地 ── */
+function detectOutlying() {
+  const cfg = PANEL_CFG.outlying || {};
+  if (cfg.enabled === false) return [];
+  if (Array.isArray(cfg.groups) && cfg.groups.length) {
+    return cfg.groups.map(g => ({
+      name: g.name, label: g.label || g.name,
+      companies: ALL.filter(c => (g.cities || []).includes(c.city) || c.outlying === g.name)
+    })).filter(g => g.companies.length);
+  }
+  const m = new Map();
+  ALL.forEach(c => {
+    if (!c.outlying) return;
+    if (!m.has(c.outlying)) m.set(c.outlying, []);
+    m.get(c.outlying).push(c);
+  });
+  return [...m.entries()].map(([name, companies]) => ({ name, label: name, companies }));
+}
+
+function drawMiniMap(svgEl, companies, zoom, w, h) {
+  if (!window.d3) { svgEl.innerHTML = ''; return; }
+  const [lon, lat] = centroid(companies);
+  const proj = d3.geoMercator().center([lon, lat]).scale(state.projection.scale() * zoom)
+    .translate([w / 2, h / 2]).clipExtent([[0, 0], [w, h]]);
+  const path = d3.geoPath(proj);
+  const uid = 'clip-' + Math.random().toString(36).slice(2);
+  svgEl.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  let out = `<defs><clipPath id="${uid}"><rect x="0" y="0" width="${w}" height="${h}"/></clipPath></defs><g clip-path="url(#${uid})">`;
+  state.allFeatures.forEach(f => {
+    const b = path.bounds(f);
+    if (!b.length || !isFinite(b[0][0]) || b[1][0] < 0 || b[0][0] > w || b[1][1] < 0 || b[0][1] > h) return;
+    const d = path(f);
+    if (d) out += `<path class="land" d="${d}"/>`;
+  });
+  const pts = companies.map(c => proj(c.coords)).filter(Boolean);
+  pts.forEach(p => { out += `<circle class="anchor" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.7"/>`; });
+  if (pts.length) {
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const x0 = Math.max(2, Math.min(...xs) - 12), y0 = Math.max(2, Math.min(...ys) - 10);
+    const x1 = Math.min(w - 2, Math.max(...xs) + 12), y1 = Math.min(h - 2, Math.max(...ys) + 10);
+    out += `<rect class="frame" x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${Math.max(8, x1 - x0).toFixed(1)}" height="${Math.max(8, y1 - y0).toFixed(1)}" rx="3"/>`;
+  }
+  svgEl.innerHTML = out + '</g>';
+}
+
+/* 都会区两套布局的自动择优：
+   同时考虑「整体企业布局均匀」与「避免局部拥挤」——
+   crowd     面板越高越挤压同侧 / 下侧集群，直接对应局部拥挤；
+   balance   与左下离岛区块的高度差，对应版面左右均衡；
+   occupancy 末行空位越少，Logo 阵列越整齐；
+   aspect    磁贴宽高比越接近 Logo 常态，尺寸越合理；
+   spread    4 列行数过少（横向铺散）或 2 列行数过多（纵向拥堵）时的密度惩罚，
+             保证两种模式都能按数据规模被选中，而不是恒选其一。 */
+function metroPanelHTML(metro, mode) {
+  return `<div class="panel-head"><span>${esc(metro.label)}</span><span class="cnt">${metro.companies.length} 家 · 占比 ${(metro.share * 100).toFixed(0)}% · ${mode === 'cols-4' ? '4 列' : '2 列'}</span></div>
+    <div class="panel-group"><svg class="mini-map" aria-label="${esc(metro.name)} 放大地理信息"></svg>
+    <div class="panel-logos ${mode}">${metro.companies.map(logoTile).join('')}</div></div>`;
+}
+function chooseMetroLayout(metro, right, siblingH, measures) {
+  const cfg = PANEL_CFG.metro || {};
+  const forced = cfg.layoutMode;
+  const usable = H - 90 - 22;
+  const scores = measures.map(m => {
+    const cols = m.mode === 'cols-4' ? 4 : 2;
+    const n = metro.companies.length;
+    const rows = Math.ceil(n / cols);
+    const empty = (cols - n % cols) % cols;
+    const tileW = (284 - (cols - 1) * 6) / cols;
+    const tileAR = tileW / (cols === 4 ? 42 : 46);
+    const crowd = m.rect.h / usable;
+    const balance = Math.abs(m.rect.h - siblingH) / H;
+    const occupancy = empty / cols;
+    const aspect = Math.abs(Math.log(tileAR / 1.6)) / 2;
+    // 少量企业用 4 列会横向铺散成一条空带；大量企业用 2 列会纵向堆成高墙
+    const spread = cols === 4 ? Math.max(0, 3 - rows) * 0.14
+                              : Math.max(0, rows - 6) * 0.10;
+    return {
+      mode: m.mode, cols, rows,
+      panel_h: Math.round(m.rect.h), crowd: +crowd.toFixed(3),
+      balance: +balance.toFixed(3), occupancy: +occupancy.toFixed(3),
+      aspect: +aspect.toFixed(3), spread: +spread.toFixed(3),
+      score: +(1.35 * crowd + 0.85 * balance + 0.55 * occupancy + 0.25 * aspect + spread).toFixed(4)
+    };
+  });
+  const ranked = scores.slice().sort((a, b) => a.score - b.score);
+  let chosen = ranked[0].mode, reason = '按整体均匀与避免局部拥挤自动择优';
+  if (forced === 'cols4' || forced === 'cols-4') { chosen = 'cols-4'; reason = '由 panels.metro.layoutMode 强制指定'; }
+  if (forced === 'cols2' || forced === 'cols-2') { chosen = 'cols-2'; reason = '由 panels.metro.layoutMode 强制指定'; }
+  return { chosen, reason, scores, runner_up: ranked[1] ? ranked[1].mode : null };
+}
+
+function renderPanels() {
+  const outGroups = detectOutlying();
+  const metro = detectMetro();
+  const left = document.getElementById('panel-outlying');
+  const right = document.getElementById('panel-metro');
+  state.metroLayout = null;
+
+  if (outGroups.length) {
+    const total = outGroups.reduce((s, g) => s + g.companies.length, 0);
+    left.innerHTML = `<div class="panel-head"><span>${esc((PANEL_CFG.outlying || {}).label || '离岛 / 飞地')}</span><span class="cnt">${total} 家 · ${outGroups.length} 处</span></div>` +
+      outGroups.map((g, i) => `<div class="panel-group">
+        <div class="group-title">${esc(g.label)} · ${g.companies.length} 家</div>
+        <svg class="mini-map" data-gi="${i}" aria-label="${esc(g.name)} 放大地理信息"></svg>
+        <div class="panel-logos cols-4">${g.companies.map(logoTile).join('')}</div>
+      </div>`).join('');
+    left.style.display = 'block';
+    left.querySelectorAll('.mini-map').forEach(svg => {
+      const g = outGroups[+svg.dataset.gi];
+      drawMiniMap(svg, g.companies, 14, 284, 72);
+    });
+    outGroups.forEach(g => g.companies.forEach(c => state.panelIds.add(c.id)));
+    state.panels.push({ name: '离岛/飞地', side: 'left', el: left, groups: outGroups, companies: outGroups.flatMap(g => g.companies) });
+  }
+
+  if (metro) {
+    const siblingH = outGroups.length ? rectOf(left).h : 0;
+    const measures = ['cols-4', 'cols-2'].map(mode => {
+      right.innerHTML = metroPanelHTML(metro, mode);
+      right.style.display = 'block';
+      drawMiniMap(right.querySelector('.mini-map'), metro.companies, 8, 284, 92);
+      return { mode, rect: rectOf(right) };
+    });
+    state.metroLayout = chooseMetroLayout(metro, right, siblingH, measures);
+    right.innerHTML = metroPanelHTML(metro, state.metroLayout.chosen);
+    right.style.display = 'block';
+    drawMiniMap(right.querySelector('.mini-map'), metro.companies, 8, 284, 92);
+    metro.companies.forEach(c => state.panelIds.add(c.id));
+    state.panels.push({ name: metro.name, side: 'right', el: right,
+      groups: [{ name: metro.name, companies: metro.companies }], companies: metro.companies });
+  }
+  state.panels.forEach(p => { p.rect = rectOf(p.el); });
+}
+
+/* ── 外围城市集群：地图四周均匀环绕 ──
+   1) 按锚点到四条边的距离选「自然边」；
+   2) 负载均衡迭代：把最挤的边中「迁移代价最小」的卡片移到最空的边，
+      直到任意两边数量差不超过 1（或受容量限制）；
+   3) 每条边内沿主轴均匀分槽，再用实测尺寸做斥力迭代消除重叠；
+   4) 上/下边避开左下与右下区块，左/右边避开顶部带与底部区块。 */
+function placeClusters() {
+  const proj = state.projection;
+  const m = new Map();
+  ALL.filter(c => !state.panelIds.has(c.id)).forEach(c => {
+    const key = c.city || '未标注';
+    if (!m.has(key)) m.set(key, []);
+    m.get(key).push(c);
+  });
+  const cardW = (MAP_DATA.layout && MAP_DATA.layout.clusterWidth) || 240;
+  const groups = [...m.entries()].map(([city, list]) => {
+    const p = proj(centroid(list)) || [W / 2, H / 2];
+    const d = { top: p[1], bottom: H - p[1], left: p[0], right: W - p[0] };
+    const natural = Object.keys(d).sort((a, b) => d[a] - d[b])[0];
+    return { city, list, anchor: p, dist: d, natural, w: cardW };
+  });
+  if (!groups.length) { state.clusters = []; state.ringLayout = { edges: {} }; return; }
+
+  // 先建 DOM 实测高度（磁贴盒尺寸固定，不随图片解码变化）
+  groups.forEach(g => {
+    const el = document.createElement('div');
+    el.className = 'cluster edge-' + g.natural;
+    el.dataset.city = g.city;
+    el.style.left = RING.pad + 'px'; el.style.top = RING.pad + 'px'; el.style.width = g.w + 'px';
+    el.innerHTML = `<div class="cluster-name">${esc(g.city)}<span class="cnt">${g.list.length}</span></div>
+                    <div class="cluster-logos">${g.list.map(logoChip).join('')}</div>`;
+    CL.appendChild(el);
+    g.el = el; g.h = el.offsetHeight;
+  });
+
+  const avgH = groups.reduce((s, g) => s + g.h, 0) / groups.length;
+  const leftPanel = state.panels.find(p => p.side === 'left');
+  const rightPanel = state.panels.find(p => p.side === 'right');
+  const topH = Math.max(...groups.map(g => g.h));
+  const topY1 = RING.pad + topH;
+  const sideY0 = topY1 + RING.gap;
+  const sideY1 = side => {
+    const p = side === 'left' ? leftPanel : rightPanel;
+    return Math.max(sideY0 + avgH, (p ? p.rect.y - 14 : H - RING.pad - 20));
+  };
+  const bottomH = topH;
+  const bottomY1 = H - FOOTER_RESERVE;      // 下边集群带底边，给说明栏留出净空
+  const bottomY0 = bottomY1 - bottomH;
+  const bands = {
+    top:    { x0: RING.pad, x1: W - RING.pad, y0: RING.pad, y1: topY1, axis: 'x', cap: Math.max(1, Math.floor((W - 2 * RING.pad + RING.gap) / (cardW + RING.gap))) },
+    bottom: { x0: 342, x1: 858, y0: bottomY0, y1: bottomY1, axis: 'x', cap: Math.max(1, Math.floor((858 - 342 + RING.gap) / (cardW + RING.gap))) },
+    left:   { x0: RING.pad, x1: RING.pad + cardW, y0: sideY0, y1: sideY1('left'), axis: 'y', cap: 0 },
+    right:  { x0: W - RING.pad - cardW, x1: W - RING.pad, y0: sideY0, y1: sideY1('right'), axis: 'y', cap: 0 }
+  };
+  bands.left.cap = Math.max(1, Math.floor((bands.left.y1 - bands.left.y0 + RING.gap) / (avgH + RING.gap)));
+  bands.right.cap = Math.max(1, Math.floor((bands.right.y1 - bands.right.y0 + RING.gap) / (avgH + RING.gap)));
+
+  // 初始按自然边分配，容量不足时改投次近边
+  const edges = ['top', 'right', 'bottom', 'left'];
+  const bucket = { top: [], right: [], bottom: [], left: [] };
+  groups.slice().sort((a, b) => a.anchor[1] - b.anchor[1]).forEach(g => {
+    const order = edges.slice().sort((a, b) => a === g.natural ? -1 : b === g.natural ? 1 : g.dist[a] - g.dist[b]);
+    const target = order.find(e => bucket[e].length < bands[e].cap) || g.natural;
+    bucket[target].push(g);
+    g.edge = target;
+  });
+
+  // 均衡迭代：任意两边数量差 > 1 时迁移代价最小的一张卡片
+  for (let iter = 0; iter < 40; iter++) {
+    const counts = edges.map(e => bucket[e].length);
+    const max = Math.max(...counts), min = Math.min(...counts);
+    if (max - min <= 1) break;
+    const from = edges[counts.indexOf(max)], to = edges[counts.indexOf(min)];
+    let best = null;
+    bucket[from].forEach(g => {
+      const cost = g.dist[to] - g.dist[from];
+      if (!best || cost < best.cost) best = { g, cost };
+    });
+    if (!best) break;
+    bucket[from] = bucket[from].filter(g => g !== best.g);
+    bucket[to].push(best.g);
+    best.g.edge = to;
+  }
+
+  // 每条边内均匀分槽 + 斥力消重叠
+  const distrib = { top: 0, right: 0, bottom: 0, left: 0 };
+  edges.forEach(edge => {
+    const b = bands[edge], arr = bucket[edge];
+    distrib[edge] = arr.length;
+    if (!arr.length) return;
+    const horizontal = b.axis === 'x';
+    const span = horizontal ? b.x1 - b.x0 : b.y1 - b.y0;
+    const sizeOf = g => horizontal ? g.w : g.h;
+    const sortKey = g => horizontal ? g.anchor[0] : g.anchor[1];
+    arr.sort((a, b2) => sortKey(a) - sortKey(b2));
+    const slot = span / arr.length;
+    arr.forEach((g, i) => {
+      const v = b[horizontal ? 'x0' : 'y0'] + slot * i + (slot - sizeOf(g)) / 2;
+      if (horizontal) { g.x = Math.max(b.x0, Math.min(v, b.x1 - g.w)); g.y = edge === 'top' ? b.y0 : b.y1 - g.h; }
+      else { g.y = Math.max(b.y0, Math.min(v, b.y1 - g.h)); g.x = b.x0; }
+    });
+    // 沿主轴推开相邻卡片
+    arr.sort((a, b2) => (horizontal ? a.x - b2.x : a.y - b2.y));
+    for (let k = 0; k < 60; k++) {
+      let moved = false;
+      for (let i = 1; i < arr.length; i++) {
+        const need = (horizontal ? arr[i - 1].x + arr[i - 1].w : arr[i - 1].y + arr[i - 1].h) + RING.gap;
+        const cur = horizontal ? arr[i].x : arr[i].y;
+        if (cur < need) { if (horizontal) arr[i].x = need; else arr[i].y = need; moved = true; }
+      }
+      if (!moved) break;
+    }
+    const limit = horizontal ? b.x1 : b.y1;
+    const last = arr[arr.length - 1];
+    const overflow = (horizontal ? last.x + last.w : last.y + last.h) - limit;
+    if (overflow > 0) arr.forEach(g => {
+      if (horizontal) g.x = Math.max(b.x0, g.x - overflow);
+      else g.y = Math.max(b.y0, g.y - overflow);
+    });
+  });
+
+  groups.forEach(g => {
+    g.el.className = 'cluster edge-' + g.edge;
+    g.el.dataset.edge = g.edge;
+    g.el.style.left = g.x + 'px';
+    g.el.style.top = g.y + 'px';
+  });
+  state.clusters = groups;
+  const cnts = edges.map(e => distrib[e]);
+  const mean = cnts.reduce((a, b) => a + b, 0) / 4;
+  state.ringLayout = {
+    edges: distrib,
+    balance: +Math.sqrt(cnts.reduce((s, n) => s + (n - mean) ** 2, 0) / 4).toFixed(3),
+    card_width: cardW,
+    bands: Object.fromEntries(edges.map(e => [e, { x0: Math.round(bands[e].x0), y0: Math.round(bands[e].y0), x1: Math.round(bands[e].x1), y1: Math.round(bands[e].y1), cap: bands[e].cap }]))
+  };
+}
+
+function drawLeaders() {
+  const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  layer.setAttribute('class', 'leader-layer');
+  state.clusters.forEach(g => {
+    let sx, sy, dx, dy;
+    if (g.edge === 'left')       { sx = g.x + g.w;   sy = g.y + g.h / 2; dx = 1;  dy = 0; }
+    else if (g.edge === 'right') { sx = g.x;         sy = g.y + g.h / 2; dx = -1; dy = 0; }
+    else if (g.edge === 'top')   { sx = g.x + g.w / 2; sy = g.y + g.h;   dx = 0;  dy = 1; }
+    else                         { sx = g.x + g.w / 2; sy = g.y;         dx = 0;  dy = -1; }
+    const ax = g.anchor[0], ay = g.anchor[1];
+    const points = [[sx, sy], [sx + dx * 20, sy + dy * 20], [ax, ay]];
+    const pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    pl.setAttribute('points', points.map(p => p.map(v => v.toFixed(1)).join(',')).join(' '));
+    pl.setAttribute('class', 'leader'); layer.appendChild(pl);
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', ax.toFixed(1)); dot.setAttribute('cy', ay.toFixed(1));
+    dot.setAttribute('r', '3.2'); dot.setAttribute('class', 'anchor'); layer.appendChild(dot);
+    state.lines.push({ owner: '集群 ' + g.city, points });
+  });
+  SVG.appendChild(layer);
+}
+
+/* 主地图上的虚线视口框 + 连接到区块的虚线引导线；无空位则省略视口框。 */
+function drawViewports() {
+  const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  layer.setAttribute('class', 'viewport-layer');
+  const obstacles = [
+    ...state.panels.map(p => rectOf(p.el)),
+    ...state.clusters.map(g => rectOf(g.el))
+  ];
+  const r = 42, rh = 30;
+  const offsets = [[0, 0], [0, -78], [0, 78], [96, 0], [-96, 0],
+                   [96, -78], [-96, -78], [96, 78], [-96, 78],
+                   [0, -152], [0, 152], [110, -152], [-110, -152]];
+  state.viewportSkipped = [];
+  state.panels.forEach(p => {
+    p.groups.forEach(g => {
+      if (!g.companies.length) return;
+      const c = state.projection(centroid(g.companies));
+      if (!c) return;
+      let box = null;
+      for (const [dx, dy] of offsets) {
+        const cand = { x: c[0] - r + dx, y: c[1] - rh + dy, w: r * 2, h: rh * 2 };
+        if (cand.x < 8 || cand.y < 8 || cand.x + cand.w > W - 8 || cand.y + cand.h > H - 8) continue;
+        if (obstacles.some(o => hit(cand, o))) continue;
+        if (state.viewports.some(v => hit(cand, v))) continue;
+        box = cand; break;
+      }
+      if (box) {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', box.x.toFixed(1)); rect.setAttribute('y', box.y.toFixed(1));
+        rect.setAttribute('width', box.w); rect.setAttribute('height', box.h);
+        rect.setAttribute('rx', '4'); rect.setAttribute('class', 'viewport'); layer.appendChild(rect);
+        state.viewports.push({ name: '视口 ' + g.name, ...box });
+      } else {
+        state.viewportSkipped.push(g.name);
+      }
+      const startX = box ? box.x + box.w / 2 : c[0];
+      const startY = box ? box.y + box.h : c[1] + rh;
+      const topY = p.rect.y;
+      const targetX = p.rect.x + p.rect.w / 2;
+      const points = [[startX, startY], [startX, Math.max(topY - 16, startY + 8)], [targetX, topY - 2]];
+      const pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      pl.setAttribute('points', points.map(q => q.map(v => v.toFixed(1)).join(',')).join(' '));
+      pl.setAttribute('class', 'panel-link'); layer.appendChild(pl);
+      state.lines.push({ owner: '区块 ' + p.name, points });
+    });
+  });
+  SVG.appendChild(layer);
+}
+
+/* ── 全局零遮挡自检：区块内磁贴、区块外集群/区块/视口、引导线 ── */
+const hit = (a, b) => a.x < b.x + b.w - 2 && a.x + a.w > b.x + 2 && a.y < b.y + b.h - 2 && a.y + a.h > b.y + 2;
+function overlapCheck() {
+  const conflicts = [];
+  const boxes = [];
+  state.clusters.forEach(g => boxes.push({ name: '集群 ' + g.city, kind: 'cluster', ...rectOf(g.el) }));
+  state.panels.forEach(p => boxes.push({ name: '区块 ' + p.name, kind: 'panel', ...rectOf(p.el) }));
+  state.viewports.forEach(v => boxes.push({ ...v, kind: 'viewport' }));
+  // 底部说明栏也是受保护区域：v1.5 曾因未纳入自检而与下边集群带压叠
+  const FOOTER = document.getElementById('stage-footer');
+  const footerRect = FOOTER ? rectOf(FOOTER) : null;
+  if (footerRect && footerRect.h) boxes.push({ name: '底部说明栏', kind: 'footer', ...footerRect });
+
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++)
+      if (hit(boxes[i], boxes[j])) conflicts.push(`区块外重叠：${boxes[i].name} × ${boxes[j].name}`);
+
+  let innerTilePairs = 0;
+  state.panels.forEach(p => {
+    const pr = rectOf(p.el);
+    const tiles = [...p.el.querySelectorAll('.logo-tile')].map(rectOf);
+    for (let i = 0; i < tiles.length; i++) {
+      const t = tiles[i];
+      if (t.x < pr.x + 1 || t.y < pr.y + 1 || t.x + t.w > pr.x + pr.w - 1 || t.y + t.h > pr.y + pr.h - 1)
+        conflicts.push(`区块内溢出：${p.name} 第 ${i + 1} 个 Logo 超出边界`);
+      for (let j = i + 1; j < tiles.length; j++) {
+        innerTilePairs++;
+        if (hit(t, tiles[j])) conflicts.push(`区块内重叠：${p.name} 第 ${i + 1}/${j + 1} 个 Logo 互相遮挡`);
+      }
+    }
+  });
+  state.clusters.forEach(g => {
+    const chips = [...g.el.querySelectorAll('.logo-chip')].map(rectOf);
+    for (let i = 0; i < chips.length; i++)
+      for (let j = i + 1; j < chips.length; j++)
+        if (hit(chips[i], chips[j])) conflicts.push(`区块外重叠：集群 ${g.city} 内 Logo ${i + 1}/${j + 1} 相压`);
+  });
+
+  const lineTargets = boxes.filter(b => b.kind !== 'viewport' && b.kind !== 'footer');
+  state.lines.forEach(l => {
+    lineTargets.filter(b => b.name !== l.owner).forEach(b => {
+      for (let s = 0; s < l.points.length - 1; s++) {
+        const [x1, y1] = l.points[s], [x2, y2] = l.points[s + 1];
+        for (let t = 0; t <= 10; t++) {
+          const x = x1 + (x2 - x1) * t / 10, y = y1 + (y2 - y1) * t / 10;
+          if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
+            conflicts.push(`引导线穿越：${l.owner} → ${b.name}`); return;
+          }
+        }
+      }
+    });
+  });
+
+  const unique = [...new Set(conflicts)];
+  const badge = document.getElementById('overlap-badge');
+  badge.className = 'badge ' + (unique.length ? 'warn' : 'ok');
+  badge.textContent = unique.length ? `${unique.length} 处重叠` : '零遮挡 ✓';
+  const official = ALL.filter(hasOfficialLogo).length;
+  const report = {
+    conflicts: unique,
+    ok: unique.length === 0,
+    panels: state.panels.map(p => ({ name: p.name, side: p.side, listed: p.companies.length,
+      tiles: p.el.querySelectorAll('.logo-tile').length, rect: rectOf(p.el) })),
+    clusters: state.clusters.length,
+    viewports: state.viewports.length,
+    viewports_skipped: state.viewportSkipped || [],
+    topology: {
+      embedded: !!(typeof EMBEDDED_TOPO !== 'undefined' && EMBEDDED_TOPO && EMBEDDED_TOPO.type === 'Topology'),
+      features: state.allFeatures.length,
+      land_paths: SVG.querySelectorAll('.base-layer .land').length,
+      degraded: state.degraded
+    },
+    logos: { official, neutral_placeholder: ALL.length - official, letter_marks: 0, total: ALL.length },
+    ring_layout: state.ringLayout,
+    metro_layout: state.metroLayout,
+    footer: footerRect ? { rect: footerRect, reserve: FOOTER_RESERVE,
+      clear: !unique.some(c => c.indexOf('底部说明栏') >= 0) } : null,
+    inner_tile_pairs_checked: innerTilePairs,
+    boxes_checked: boxes.length
+  };
+  document.getElementById('self-check-report').textContent = JSON.stringify(report);
+  window.__overlapReport = report;
+  if (unique.length) console.warn('[零遮挡自检] 冲突明细：', unique);
+  return unique;
+}
+
+/* ── 交互 ── */
+function initControls() {
+  const inds = [...new Set(ALL.map(c => c.industry).filter(Boolean))].sort();
+  const sel = document.getElementById('industry-filter');
+  inds.forEach(i => { const o = document.createElement('option'); o.value = i; o.textContent = i; sel.appendChild(o); });
+  sel.addEventListener('change', () => {
+    document.querySelectorAll('.logo-chip, .logo-tile').forEach(el => {
+      const c = ALL.find(x => x.id === el.dataset.id);
+      el.classList.toggle('dim', !!sel.value && (!c || c.industry !== sel.value));
+    });
+    toast(sel.value ? `已聚焦：${sel.value}` : '已恢复全部行业');
+  });
+
+  const onLogoClick = e => { const el = e.target.closest('.logo-chip, .logo-tile, .d-item'); if (el) openModal(el.dataset.id); };
+  CL.addEventListener('click', onLogoClick);
+  state.panels.forEach(p => p.el.addEventListener('click', onLogoClick));
+
+  const drawer = document.getElementById('drawer');
+  document.getElementById('btn-list').addEventListener('click', () => drawer.classList.add('open'));
+  drawer.querySelector('.d-head button').addEventListener('click', () => drawer.classList.remove('open'));
+  document.getElementById('d-body').addEventListener('click', onLogoClick);
+  const byIndustry = {};
+  ALL.forEach(c => { (byIndustry[c.industry || '其他'] ||= []).push(c); });
+  document.getElementById('d-body').innerHTML = Object.keys(byIndustry).sort().map(k =>
+    `<div class="d-group"><h4>${esc(k)} · ${byIndustry[k].length}</h4>` +
+    byIndustry[k].map(c => `<div class="d-item" data-id="${esc(c.id)}">
+      <span class="d-name"><span class="logo-tiny">${logoFace(c)}</span>${esc(c.name)}</span>
+      <span>${esc(c.city)}</span></div>`).join('') + `</div>`).join('');
+
+  document.getElementById('btn-check').addEventListener('click', () => {
+    const c = overlapCheck(); toast(c.length ? `发现 ${c.length} 处重叠，详见控制台` : '区块内 / 区块外零遮挡自检通过 ✓');
+  });
+  document.getElementById('modal-mask').addEventListener('click', closeModal);
+  document.getElementById('modal').querySelector('.m-close').addEventListener('click', closeModal);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); drawer.classList.remove('open'); } });
+
+  document.getElementById('btn-export').addEventListener('click', async () => {
+    if (!window.html2canvas) { toast('html2canvas 未加载，无法导出'); return; }
+    toast('正在生成 2× 高清 PNG…');
+    try {
+      const canvas = await html2canvas(STAGE, { scale: 2, backgroundColor: '#FAFAFA', useCORS: true, logging: false, width: W, height: H });
+      const a = document.createElement('a');
+      a.download = `${REGION}-头部企业总部分布图.png`;
+      a.href = canvas.toDataURL('image/png'); a.click();
+      toast('PNG 已导出');
+    } catch (e) { toast('导出失败：' + e.message); console.error(e); }
+  });
+}
+function openModal(id) {
+  const c = ALL.find(x => x.id === id); if (!c) return;
+  document.getElementById('m-logo').innerHTML = logoFace(c);
+  document.getElementById('m-brand').style.background = validColor(c.brandColor);
+  document.getElementById('m-name').textContent = c.name;
+  document.getElementById('m-local').textContent = c.local_name || '';
+  document.getElementById('m-hq').textContent = [c.prefecture, c.city].filter(Boolean).join(' · ') || '—';
+  document.getElementById('m-industry').textContent = c.industry || '—';
+  document.getElementById('m-metric').textContent = c.metric || '—';
+  document.getElementById('m-coords').textContent = (c.coords || []).map(v => Number(v).toFixed(3)).join(', ') || '—';
+  document.getElementById('m-desc').textContent = c.desc || '暂无简介。';
+  document.getElementById('modal-mask').style.display = 'block';
+  document.getElementById('modal').style.display = 'block';
+}
+function closeModal() {
+  document.getElementById('modal-mask').style.display = 'none';
+  document.getElementById('modal').style.display = 'none';
+}
+
+/* ── 启动 ── */
+(async function main() {
+  document.getElementById('page-title').textContent = MAP_DATA.title || `${REGION} · 头部企业总部分布图`;
+  document.getElementById('page-sub').textContent = MAP_DATA.subtitle || '按法定注册地 / 核心运营总部标注 · 仅显示官方 Logo · 单击查看企业详情';
+  document.getElementById('stage-footer').innerHTML =
+    `<strong>${esc(REGION)}</strong> · 收录 ${ALL.length} 家企业 / 品牌 · ${[...new Set(ALL.map(c => c.city))].length} 个城市集群<br>` +
+    `行业 ${[...new Set(ALL.map(c => c.industry))].length} 类 · 底图：${esc((MAP_DATA.map && MAP_DATA.map.sourceLabel) || 'TopoJSON 轮廓')} · 官方 Logo 内嵌，运行时零网络请求`;
+  document.getElementById('d-title').textContent = `完整名录 · ${ALL.length} 家`;
+
+  const ok = showLibraryError();
+  const packed = ok ? await loadGeometry()
+    : { picked: { type: 'MultiPoint', coordinates: ALL.map(c => c.coords), __degraded: true }, all: [] };
+  if (!packed || !window.d3) {
+    CL.innerHTML = `<div class="cluster edge-right" style="left:40px;top:40px;width:520px">
+      <div class="cluster-name">全部企业</div><div class="cluster-logos">${ALL.map(logoChip).join('')}</div></div>`;
+    renderPanels(); initControls(); requestAnimationFrame(() => setTimeout(overlapCheck, 60)); return;
+  }
+  state.projection = buildProjection(packed.picked);
+  drawBase(packed);
+  renderPanels();
+  initControls();
+  layoutAll();
+
+  const imgs = [...document.images];
+  Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(res => {
+    img.addEventListener('load', res, { once: true });
+    img.addEventListener('error', res, { once: true });
+  }))).then(() => requestAnimationFrame(layoutAll));
+  window.addEventListener('load', () => requestAnimationFrame(layoutAll));
+})();
+
+/* 清空并重算外围集群、引导线、视口与自检；面板尺寸变化后必须调用 */
+function layoutAll() {
+  CL.innerHTML = '';
+  SVG.querySelectorAll('.leader-layer, .viewport-layer').forEach(n => n.remove());
+  state.clusters = []; state.lines = []; state.viewports = [];
+  state.panels.forEach(p => { p.rect = rectOf(p.el); });
+  placeClusters();
+  drawLeaders();
+  drawViewports();
+  overlapCheck();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+{
+  "optimizer_hints": {
+    "capability": "检索某地区头部企业并按注册总部生成单文件交互式地图信息图，只显示真实官方 Logo（禁止首字母占位与文字名称标签），Logo 沿地图四周均匀环绕，左下离岛/飞地与右下都会区双区块，都会区 4 列 / 2 列自动择优，区块内外零遮挡",
+    "inputs": ["目标国家或地区", "企业数量与榜单口径", "官方 Logo 素材目录", "输出目录"],
+    "trigger_actions": ["生成企业总部地图", "制作品牌分布信息图", "补真实官方 Logo / 去掉首字母占位", "改四周均匀环绕布局", "补离岛/飞地标注", "补都会区放大特写", "都会区双布局自动择优"],
+    "exclusions": ["只设计一个新 Logo", "翻译或摘要企业名单", "路线规划与导航", "纯营收图表或组织架构图"],
+    "artifacts": ["单文件交互式 HTML", "2× PNG 海报", "缺图清单", "零遮挡自检报告"]
+  },
+  "fallback_positive_concepts": ["company_hq_map", "region_top_companies", "logo_embedding"],
+  "positive_concepts": {
+    "company_hq_map": {
+      "weight": 0.52,
+      "phrases": ["企业总部地图", "总部地图", "总部地理分布", "品牌分布信息图", "品牌分布图", "企业分布图", "分布图", "企业地图", "头部企业总部分布", "企业总部分布图", "company hq map", "headquarters map", "地图数据加载失败", "Failed to fetch", "底图降级", "底图加载失败", "企业列表布局", "四周均匀排列", "四周环绕"]
+    },
+    "region_top_companies": {
+      "weight": 0.12,
+      "phrases": ["头部企业", "Top 20–100", "20–100 家", "企业/品牌", "top companies", "前 40 家"]
+    },
+    "logo_embedding": {
+      "weight": 0.16,
+      "phrases": ["官方品牌 Logo", "官方 Logo", "品牌 Logo", "补 Logo", "logo", "商标", "真实官方 logo", "首字母大写", "首字母占位", "企业文字名称", "不要文字名称", "4 列", "2 列", "局部拥挤"]
+    },
+    "outlying_panel": {
+      "weight": 0.10,
+      "phrases": ["离岛/飞地", "离岛", "飞地", "outlying", "exclave"]
+    },
+    "metro_panel": {
+      "weight": 0.10,
+      "phrases": ["都会区", "城市群", "35%", "放大特写", "metro area", "4 列横向", "2 列纵向", "排列均匀"]
+    }
+  },
+  "negative_concepts": {
+    "logo_design_only": {
+      "weight": 0.36,
+      "exclusive": true,
+      "phrases": ["设计一个 logo", "画一个 logo", "设计品牌 logo", "design a logo", "create a new logo"]
+    },
+    "translate_or_summarize": {
+      "weight": 0.32,
+      "exclusive": true,
+      "phrases": ["翻译成", "摘要", "写一篇公众号文章", "translate", "summarize"]
+    },
+    "route_planning": {
+      "weight": 0.32,
+      "exclusive": true,
+      "phrases": ["路线规划", "导航", "怎么走", "route planning", "turn-by-turn"]
+    },
+    "generic_chart": {
+      "weight": 0.30,
+      "exclusive": true,
+      "phrases": ["柱状图", "折线图", "组织架构图", "bar chart", "line chart", "org chart"]
+    }
+  }
+}

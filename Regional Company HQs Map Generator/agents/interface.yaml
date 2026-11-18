@@ -1,0 +1,21 @@
+interface:
+  display_name: "区域企业总部地图生成器"
+  short_description: "检索地区头部企业并按注册总部生成单文件交互式地图，只显示真实官方 Logo（无字母牌与文字标签），企业沿地图四周均匀环绕，左下离岛/飞地与右下都会区双区块，都会区 4 列 / 2 列自动择优，区块内外零遮挡"
+  default_prompt: "使用 $regional-company-hqs-map-generator 为日本生成一张 Top 50 企业总部分布图，抓取真实官方 Logo 且不用首字母占位，Logo 沿地图四周均匀环绕，并把离岛/飞地与占比超过 35% 的都会区分别放到画布左下和右下。"
+compatibility:
+  canonical_format: "agent-skills"
+  adapter_targets:
+    - "generic"
+  activation:
+    mode: "explicit"
+  execution:
+    context: "inline"
+    shell: "bash"
+  trust:
+    source_tier: "local"
+    remote_inline_execution: "forbid"
+    remote_metadata_policy: "仅使用本地数据与本地 Logo 素材；联网仅用于公开榜单检索与从 worldvectorlogo CDN 抓取官方 SVG，抓取不到的品牌显示无字母无文字的中性占位并列缺图清单，绝不生成首字母牌。成品 HTML 不依赖网络"
+  degradation:
+    generic:
+      mode: "single-file-html"
+      note: "D3 / topojson-client / html2canvas 与底图 TopoJSON 均在构建期内嵌，运行时零网络请求，不受预览 CSP 与断网影响；仅当构建产物被手工破坏时才降级为仅坐标定位。"
