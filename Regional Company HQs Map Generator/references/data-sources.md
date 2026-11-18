@@ -76,6 +76,8 @@ v1.5 起页面**只显示真实官方 Logo 原图**，不再按字段重绘徽�
 | --- | --- |
 | `brandColor` | 品牌 VI 主色，6 位 HEX；仅用于详情弹窗的细色条，不参与 Logo 绘制 |
 | `wordmark` | 官方标准字的拉丁写法（TOYOTA / SONY）；`fetch_logos.py` 用它派生候选 slug，**页面不显示该文字** |
+| `officialSite` | 企业官网首页；Agent 搜索后写入，供 `fetch_official_logos.py` 发现官网自身的官方 SVG（第二层来源），不用于页面显示 |
+| `officialLogoUrl` | 官网上官方 Logo SVG 的精确直链；同样须通过校验闸门，不用于页面显示 |
 | `logoStyle` / `mark` / `markShape` | 已弃用，仅为兼容旧数据集保留，模板完全忽略 |
 
 严禁把 `wordmark` 首字符、`mark` 或 `markShape` 渲染成 Logo。`validate_dataset.py` 会拦截任何含文字节点或 64×20 拼装版式的伪 Logo。
@@ -120,11 +122,11 @@ v1.5 起页面**只显示真实官方 Logo 原图**，不再按字段重绘徽�
 
 `scripts/build_map.py --init <path>` 可直接生成该骨架（含 1 条示例记录，需补足到 20 条以上才能通过校验）。`inset` 是 v1.2 的旧字段，仍能读取但已弃用，请改用 `panels.metro`。
 
-## 7. 官方 Logo 采集规范（v1.5 重写）
+## 7. 官方 Logo 采集规范（三层降级）
 
 **每家企业必须尽力取得真实官方 Logo；取不到时显示中性占位，绝不自造 Logo。**
 
-### 7.1 主来源：worldvectorlogo
+### 7.1 第一层：worldvectorlogo 精确 slug
 
 ```bash
 python3 <skill>/scripts/fetch_logos.py \
@@ -132,22 +134,42 @@ python3 <skill>/scripts/fetch_logos.py \
   --hints slugs.json --manifest missing-logos.json
 ```
 
-- 直链格式 `https://cdn.worldvectorlogo.com/logos/<slug>.svg`；站内页面为 `https://www.worldvectorlogo.com/logo/<slug>`。
-- slug 常与品牌英文名不同，且同名品牌有 `-1` / `-2` 等版本。优先在数据集写 `company.logoSlug` / `logoSlugs`，或用 `--hints` 提供 `{"company-id": ["slug-a", ...]}` 映射；脚本也会按 id / wordmark / name 自动派生候选并追加版本后缀。
+- 直链格式 `https://cdn.worldvectorlogo.com/logos/<slug>.svg`（实测 200）；站内页面为 `https://www.worldvectorlogo.com/logo/<slug>`。
+- **主站 `worldvectorlogo.com` 实测 403**（首页、`/logo/<slug>`、`www` 均不可直连），可用网页抓取工具查看主站页面确认 slug，但脚本只能走其官方 CDN。两者是同一素材源，不存在"改走别的站"。
+- 「精确 slug 优先」：显式 `company.logoSlug` / `logoSlugs` / `--hints`（`{"company-id": ["slug-a", ...]}`）先串行快试；未命中才按 id / wordmark / name 派生并追加 `-1…-3` 版本后缀并发探测，命中即停。
 - 抓取是构建期行为，成品 HTML 不含任何外链；网络受限时可 `--offline` 只统计本地素材。
-- 站里没有的品牌（多为地方银行、区域公用事业等）写入 `missing-logos.json`，由模板显示**无字母、无文字的斜纹中性占位**；用户后续把官方 SVG 放进 `logos/<id>.svg` 即可自动生效。
+- 站里没有的品牌（多为地方银行、区域公用事业等）写入 `missing-logos.json`，进入第二层。
 
-### 7.2 其他来源与优先级
+### 7.2 第二层：企业官网官方 SVG
 
-1. `--hints` / `logoSlug` 精确 slug → worldvectorlogo CDN 官方原图（推荐）。
-2. 本地官方素材：企业品牌规范页 / 媒体资源包 / Wikimedia Commons，保存为 `logos/<id>.svg`（或 `.png/.webp/.jpg`），构建时加 `--logos-dir`。
-3. 数据集写 `logoFile`（相对 `dataset.json` 目录或绝对路径）。
-4. 数据集写 `logoUrl` 并加 `--download-logos` 联网下载。
-5. 以上都缺 → 中性占位 + 缺图清单。**没有第 6 项：不允许首字母色块、文字字标、几何图腾等任何替代徽标。**
+**搜索官网这一步由 Agent 完成，脚本不做。** 实测当前网络下 Google / DuckDuckGo 直连返回 000、Bing 返回 302，抓搜索引擎 HTML 既不可靠也违反其条款；WorkBuddy 的搜索能力可用。Agent 查得官网后写 `company.officialSite` / `company.officialLogoUrl`，或集中写进 `--sites`。地方银行域名常与品牌名不同，必须搜而不要猜（例：琉球银行是 `ryugin.co.jp`，不是 `bank-ryukyu.co.jp`）。
 
-### 7.3 约束
+```bash
+python3 <skill>/scripts/fetch_official_logos.py \
+  --data dataset.json --out-dir logos \
+  --sites sites.json --only-missing --manifest official-logos.json
+```
+
+- `--sites` 支持 `{"id": "https://官网/"}` 或 `{"id": {"site": "https://官网/", "logoUrl": "https://.../logo.svg"}}`；数据集字段优先于 `--sites`。
+- 发现策略：只做只读 GET 官网首页 → 从 `src` / `data-src` / `href` / `srcset` / CSS `url()` 抽 `.svg` → 按文件名打分（logo/brand/wordmark 加分；icon/btn/banner/social 等硬排除）→ 首页无命名 Logo 时限量探测常见路径。若给了 `officialLogoUrl` 则直接抓该直链。
+- **校验闸门**：合法 XML、根为 `<svg>`、恰好一个 `viewBox`、宽高比 ≤ 16 且非小方形图标、≥ 2 个矢量元素、无 `<image>` / `<script>` / `foreignObject` / 外部 `href`、`is_fake_logo()` 判定非伪 Logo。横向字标常常很扁（KEYENCE 官方 Logo 为 90.8×16），不能按最小边 ≥ 20 一刀切。
+- 只认官网自身引用的 SVG；hash 文件名的云端插图、UI 图标、内联装饰 SVG 一律不认。未验证品牌写入 manifest 的 `unverified`（含逐候选失败原因），**不写 `<id>.svg`**。
+- 官网在当前代理不可达（如 `ryugin.co.jp` 返回 000/502）或官网只用内联 SVG / 栅格 Logo（如武田制药）时，属预期降级，进入第三层。
+- macOS 自带 Python 常缺根证书：脚本优先用 `certifi` 的 CA 验证，仅在证书链验证失败时对公开静态资源回退一次，不发送任何凭据。
+
+### 7.3 其他来源与优先级
+
+1. 精确 slug → worldvectorlogo CDN 官方原图（第一层，推荐）。
+2. Agent 查得官网 → `fetch_official_logos.py` 抓官网 SVG（第二层，仅补缺图品牌）。
+3. 本地官方素材：企业品牌规范页 / 媒体资源包，保存为 `logos/<id>.svg`（或 `.png/.webp/.jpg`），构建时加 `--logos-dir`。
+4. 数据集写 `logoFile`（相对 `dataset.json` 目录或绝对路径）。
+5. 数据集写 `logoUrl` 并加 `--download-logos` 联网下载。
+6. 以上都缺 → 中性占位 + 缺图清单。**没有第 7 项：不允许首字母色块、文字字标、几何图腾等任何替代徽标。**
+
+### 7.4 约束
 
 - 所有图片由 `embed_logos.py` 转成 `data:image/...;base64,...` 内嵌；**禁止**在 HTML 中留 `http(s)://...` 图片链接。
+- 官网兜底只采用官网自身引用、且通过 7.2 校验闸门的 SVG；脚本不抓搜索引擎页面，Agent 查得的官网须写进 `officialSite` / `--sites` 数据契约，而不是把第三方矢量站的图片直接当官方 Logo。
 - SVG 清洗：剥离脚本 / 事件属性 / `foreignObject` / 外链 `<image>` / `<style>`，补 `xmlns`，**保证只有一个 `viewBox`**（重复 `viewBox` 会让浏览器整片破图）。
 - 伪 Logo 拦截：`validate_dataset.py` 与 `embed_logos.py` 会拒绝含 `<text>` 的单字母色块、纯文字字标、`viewBox="0 0 64 20"` 拼装牌、重复 `viewBox` 的无效 SVG。历史数据集里的字母牌会被自动剔除并尝试补真图。
 - 官方 Logo 的字标通常已转曲为 `<path>`，因此含 `<text>` 的 SVG 基本可判定为程序生成徽标。

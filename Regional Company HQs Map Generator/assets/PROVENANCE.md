@@ -16,10 +16,15 @@
 
 ## 官方品牌 Logo（构建期抓取，不随 skill 分发）
 
-`scripts/fetch_logos.py` 在**构建期**从 `https://cdn.worldvectorlogo.com/logos/<slug>.svg` 抓取企业官方 SVG，
-清洗后以 `data:image/...;base64` 内嵌进成品 HTML；`logos/` 目录不随本 skill 分发，属于每次任务的数据资产。
-商标图形仅用于信息图识别，须遵守来源站点使用条款；缺失品牌不伪造 Logo，显示中性占位并列入缺图清单。
-抓取前先确认该品牌的官方素材在来源站是否存在，`--hints` 可给出精确 slug 以避免误取同名品牌的其它版本。
+`scripts/fetch_logos.py` 在**构建期**从 `https://cdn.worldvectorlogo.com/logos/<slug>.svg` 抓取企业官方 SVG
+（主站 `worldvectorlogo.com` 实测 403，仅其官方 CDN 直链可用）；缺图品牌由 `scripts/fetch_official_logos.py`
+按 Agent 查得的 `company.officialSite` / `--sites` 抓取**企业官网自身引用**的官方 SVG，两层来源都只做只读 GET、
+都经过矢量 / 尺寸 / 伪 Logo 校验。官网由 Agent 用搜索能力查得，脚本不抓搜索引擎页面。
+
+清洗后统一以 `data:image/...;base64` 内嵌进成品 HTML；`logos/` 目录不随本 skill 分发，属于每次任务的数据资产。
+商标图形仅用于信息图识别，须遵守来源站点与企业品牌规范的使用条款；两层都取不到的品牌不伪造 Logo，
+显示无字母无文字的中性占位并列入缺图清单。抓取前先确认官方素材是否存在，`--hints` 可给出精确 slug
+以避免误取同名品牌的其它版本；官网素材须保留 `official-logos.json` 中的来源 URL 以便追溯。
 
 ## 合规边界
 

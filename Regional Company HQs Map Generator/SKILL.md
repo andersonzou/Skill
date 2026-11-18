@@ -14,23 +14,23 @@ agent_created: true
 
 ## 目标
 
-按注册总部生成白底冷灰极简风格、单文件可交互且可导出 PNG 的企业总部 HTML 信息图。五条硬要求：**只显示真实官方 Logo**（无字母牌、无附加名称文字）；**Logo 沿地图四周均匀环绕**；**离岛/飞地列在左下**；**占比超过 35% 的都会区列在右下并在 4 列 / 2 列中自动择优**；**区块内外零遮挡**。
+按注册总部生成白底冷灰极简、单文件可交互可导出 PNG 的企业总部 HTML 信息图。硬要求：只显示真实官方 Logo（无字母牌、无名称文字）、Logo 四周均匀环绕、离岛/飞地列左下、占比超过 35% 的都会区列右下并在 4 列 / 2 列自动择优、区块内外零遮挡。
 
 ## 输入
 
-`target_region` 必填；`company_count`（默认 40–60，限 `[20,100]`）、`ranking_criteria`、`logos_dir`、`output_dir` 可选。询问用法或修改本技能时不跑生成流程。
+`target_region` 必填；`company_count`（默认 40–60，限 `[20,100]`）、`ranking_criteria`、`logos_dir`、`output_dir` 可选。仅咨询/改技能时不跑生成。
 
 ## 资源
 
 | 路径 | 用途 |
 | --- | --- |
-| `references/workflow.md` | Step 0–6 完整命令、抓 Logo、严格 CSP 核验与验收清单 |
-| `references/data-sources.md` | 榜单与注册地核验、官方 Logo 采集、`metro` / `outlying` 语义 |
+| `references/workflow.md` | Step 0–6 完整命令、两层抓 Logo、严格 CSP 核验与验收清单 |
+| `references/data-sources.md` | 榜单与注册地核验、Logo 三层来源、`metro` / `outlying` 语义 |
 | `references/visual-spec.md` | 视觉规范、四周环绕与双布局算法、零遮挡判据、合规红线 |
 | `assets/companies.schema.json` | 数据集 Schema |
 | `assets/map-template.html` | 单文件 HTML 模板（5 个注入占位符） |
-| `assets/vendor/` + `assets/topo/` + `assets/PROVENANCE.md` | 构建期内联的 D3 / topojson / html2canvas 与底图数据及来源许可 |
-| `scripts/fetch_logos.py` | 从 worldvectorlogo 抓取官方 SVG Logo，输出缺图清单 |
+| `assets/vendor/` + `assets/topo/` + `assets/PROVENANCE.md` | 构建期内联的 D3 / topojson / html2canvas、底图数据与来源许可 |
+| `scripts/fetch_logos.py` / `fetch_official_logos.py` | 两层抓官方 SVG：精确 slug → 官网兜底（校验 + 缺图清单） |
 | `scripts/validate_dataset.py` / `embed_logos.py` | 数据集校验与伪 Logo 拦截 / 官方图内嵌 |
 | `scripts/build_map.py` / `verify_map.py` | 生成单文件 HTML（`--init` 出骨架）/ 严格 CSP 回归 |
 | `evals/` | 触发用例与语义配置，改 `description` 后复跑 |
@@ -38,24 +38,24 @@ agent_created: true
 ## 工作流
 
 1. **检索建模** — 读 `data-sources.md`，检索权威榜单、核验注册地、填 `metro` / `outlying`，按 schema 写 `dataset.json`。
-2. **抓官方 Logo** — 跑 `fetch_logos.py --data ... --out-dir logos --hints ... --manifest ...`；站里没有的品牌写入缺图清单，由模板显示中性占位，**绝不生成首字母牌或文字牌**。
+2. **抓官方 Logo（两层）** — `fetch_logos.py` 精确 slug → 未命中由 Agent 查官网、跑 `fetch_official_logos.py`；仍缺图用中性占位，绝不造首字母牌。详见 `workflow.md` Step 6。
 3. **校验** — `validate_dataset.py` 清零所有 `error`。
 4. **配置与构建** — 读 `visual-spec.md`；涉及中国领土时用 `--topo-file` 传合规边界；跑 `build_map.py --data ... --out ... --logos-dir logos`，依赖库、TopoJSON、Logo 全部内嵌。
-5. **验证** — 先跑 `verify_map.py --html ...`，再用 `present_files` 打开，确认 `conflicts: []`、`logos.letter_marks === 0`、四周均衡、`metro_layout.chosen` 有依据，并试交互与导出。
+5. **验证** — 先 `verify_map.py --html ...`，再 `present_files` 打开，确认 `conflicts: []`、`letter_marks === 0`、`footer.clear`、四周均衡、`metro_layout.chosen` 有依据，试交互与导出。
 6. **交付** — 说明来源、Logo 覆盖与缺图清单、四周分布、布局选择、未核实项。
-
 
 ## 硬约束
 
 - 数量 `20–100`；注册地与引导线坐标真实，禁止首都批量替代。
-- **只显示真实官方 Logo 图**：磁贴内无企业文字名称标签，不以首字母作 Logo（官方 Logo 本身为字母字标除外）；缺图显示无字母无文字的中性占位。Logo 按原始宽高比 `object-fit: contain` 显示，固定盒尺寸。
-- 官方图只能以 `data:image/...` 内嵌，禁止外链；校验与内嵌脚本会拦截 `<text>` 文字牌、64×20 拼装牌与重复 `viewBox` 的无效 SVG。
-- 外围集群按锚点到四边距离分配并做负载均衡，使上/右/下/左数量尽量相等；同边均匀分槽，禁止只排左右两列。
-- 所有 `outlying` 企业进左下区块；`metro` 占比超阈值必须启用右下区块；两者含放大地理信息，显式禁用会被拦截。右下区块按面板高度、左右均衡、末行空位、磁贴比例与密度评分在 4 列 / 2 列间自动择优，可用 `panels.metro.layoutMode` 强制指定。
+- **只显示真实官方 Logo 图**：磁贴无名称标签，不以首字母作 Logo（官方字标除外）；缺图用无字母无文字中性占位；按原始宽高比 `object-fit: contain` 固定盒显示。
+- 官方图只能以 `data:image/...` 内嵌，禁止外链；校验拦截 `<text>` 文字牌、64×20 拼装牌与重复 `viewBox`。
+- 官网兜底只取官网自身引用、通过校验的 SVG；脚本不抓搜索引擎，未验证品牌中性占位。
+- 外围集群按锚点分四边并负载均衡，同边均匀分槽，禁止只排左右两列。
+- 所有 `outlying` 进左下、`metro` 超阈值必启右下，均含放大地理信息，显式禁用会被拦截。右下按面板高度、左右均衡、末行空位、磁贴比例与密度在 4/2 列间择优，可用 `panels.metro.layoutMode` 强制。
 - 区块内 Logo 不重叠不越界；区块外集群、区块、视口框、引导线互不遮挡，以运行时自检报告为准。
-- **依赖库与底图必须构建期内嵌，运行时禁止 `fetch` 与外链资源**；预览 CSP 会拦截 `data:` 与 CDN，`verify_map.py` 必须 PASS。
-- 涉及中国领土轮廓时必须用 `--topo-file` 传符合国家标准与审图要求的边界数据，标注统一用「中国台湾 / 中国香港 / 中国澳门」。
+- **依赖库与底图构建期内嵌，运行时禁止 `fetch` 与外链**；预览 CSP 拦截 `data:` / CDN，`verify_map.py` 必须 PASS。
+- 涉及中国领土须用 `--topo-file` 传合规边界数据，标注用「中国台湾 / 中国香港 / 中国澳门」。
 
 ## 验收
 
-核心门槛：校验无 `error`、`verify_map.py` PASS、`conflicts` 为空、`letter_marks === 0`、四周均衡、双区块齐全、PNG 无空白。逐项清单见 `references/workflow.md`。
+门槛：校验无 `error`、`verify_map.py` PASS、`conflicts` 空、`letter_marks === 0`、四周均衡、双区块齐全、PNG 无空白。

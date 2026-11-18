@@ -125,6 +125,8 @@
           "markShape": { "type": "string", "enum": ["square", "circle", "diamond"], "description": "已弃用，仅为向后兼容保留" },
           "logoFile": { "type": "string", "description": "真实官方 Logo 本地路径（相对 dataset.json 目录或绝对路径）；由 embed_logos.py 内嵌为 data URI，伪 Logo 会被拒绝" },
           "logoUrl": { "type": "string", "format": "uri", "description": "官方 Logo 直链；仅在 --download-logos 时下载内嵌，失败则显示中性占位" },
+          "officialSite": { "type": "string", "format": "uri", "description": "企业官网首页；由 Agent 用搜索能力查得后写入，供 fetch_official_logos.py 发现官网自身的官方 SVG Logo（第二层来源）。脚本本身不抓搜索引擎" },
+          "officialLogoUrl": { "type": "string", "format": "uri", "description": "官网上官方 Logo SVG 的精确直链；由 Agent 核验后写入，fetch_official_logos.py 优先直接抓取并同样经过矢量/尺寸/伪 Logo 校验" },
           "logoSlug": { "type": "string", "description": "worldvectorlogo CDN 的官方 Logo slug，供 fetch_logos.py 精确抓取" },
           "logoSlugs": { "type": "array", "items": { "type": "string" }, "description": "多个候选 slug，按优先级尝试；命中即停" },
           "logoDataUri": { "type": "string", "description": "由 embed_logos.py 注入的 data:image/... 官方 Logo 内嵌图；禁止外链图片，禁止含文字节点的拼装牌 / 64×20 字母牌 / 重复 viewBox 的无效 SVG。留空时模板显示无字母无文字的中性占位" },

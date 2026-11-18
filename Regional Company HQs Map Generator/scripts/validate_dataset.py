@@ -33,7 +33,7 @@ RECOMMENDED_FIELDS = ("local_name", "prefecture", "metric", "desc", "brandColor"
 ALLOWED_FIELDS = set(
     REQUIRED_FIELDS + RECOMMENDED_FIELDS
     + ("mark", "markShape", "logoFile", "logoUrl", "logoDataUri", "logoSlug", "logoSlugs",
-       "metro", "outlying")
+       "officialSite", "officialLogoUrl", "metro", "outlying")
 )
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 LOGO_STYLES = {"sans", "serif", "heavy", "italic"}

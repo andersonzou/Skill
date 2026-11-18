@@ -14,7 +14,7 @@ compatibility:
   trust:
     source_tier: "local"
     remote_inline_execution: "forbid"
-    remote_metadata_policy: "仅使用本地数据与本地 Logo 素材；联网仅用于公开榜单检索与从 worldvectorlogo CDN 抓取官方 SVG，抓取不到的品牌显示无字母无文字的中性占位并列缺图清单，绝不生成首字母牌。成品 HTML 不依赖网络"
+    remote_metadata_policy: "仅使用本地数据与本地 Logo 素材；联网仅用于公开榜单检索、从 worldvectorlogo CDN 抓取官方 SVG，以及按 Agent 查得的官网地址抓取官网自身的官方 SVG Logo（只做只读 GET，不抓搜索引擎页面），候选须通过矢量/尺寸/伪 Logo 校验。两层都抓不到的品牌显示无字母无文字的中性占位并列缺图清单，绝不生成首字母牌。成品 HTML 不依赖网络"
   degradation:
     generic:
       mode: "single-file-html"

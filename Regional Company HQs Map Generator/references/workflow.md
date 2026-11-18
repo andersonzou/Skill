@@ -13,21 +13,48 @@
 3. 逐家核验法定注册地或核心运营总部（官网「公司概要 / Legal / Impressum / 有価証券報告書」优先），**禁止把跨国企业统一归入首都**；`city` 字符串同城必须完全一致。
 4. 填写 `metro`（都会区/城市群）与 `outlying`（离岛/飞地分组）；语义见 `data-sources.md` 第 8 节。
 5. 按 `assets/companies.schema.json` 写出 `dataset.json`。可用 `python3 scripts/build_map.py --init <path> --region <地区>` 生成骨架。
-6. **抓取真实官方 Logo**（禁止自己画首字母牌或文字字标）：
+6. **抓取真实官方 Logo（三层降级，禁止自己画首字母牌或文字字标）**：
+
+### 第一层 · worldvectorlogo 精确 slug 优先
 
 ```bash
 python3 <skill>/scripts/fetch_logos.py \
-  --data <dataset.json> \
-  --out-dir <logos_dir> \
-  --hints <slug映射.json> \
-  --manifest <output_dir>/missing-logos.json
+  --data <dataset.json> --out-dir <logos_dir> \
+  --hints <slug映射.json> --manifest <output_dir>/missing-logos.json
 ```
 
-- 来源为 `https://cdn.worldvectorlogo.com/logos/<slug>.svg`；脚本按 `company.logoSlugs` / `logoSlug` / `--hints` 的精确 slug 优先抓取，未命中时按 id / wordmark / name 派生候选并追加 `-1…-3` 版本后缀，命中即停。
-- 对每个候选做安全清洗：剥脚本与事件属性、去外链 `<image>` / `<style>`、补 `xmlns`，并**保证只有一个 `viewBox`**（重复 `viewBox` 会让浏览器判定 SVG 无效并整片破图）。
-- 产物是 `<logos_dir>/<id>.svg` 官方原图；站里没有的品牌写入 `missing-logos.json`，由模板显示无字母、无文字的中性占位，**绝不生成替代 Logo**。
-- `{"company-id": ["slug-a", "slug-b"]}` 为 `--hints` 格式；已有本地文件默认跳过，可用 `--force` 重抓，`--offline` 只统计本地素材。也可把官方 SVG/PNG 直接放进 `<logos_dir>/<id>.svg`。
-- 网络受限时抓取会失败，属预期降级：保留缺图清单继续构建，并在交付说明里列出待补品牌。
+- 素材源是 worldvectorlogo。**主站 `worldvectorlogo.com` 实测 403**（首页与 `/logo/<slug>` 均不可直连），可用网页抓取工具查看主站页面确认 slug，但脚本必须走其官方 CDN `https://cdn.worldvectorlogo.com/logos/<slug>.svg`（实测 200）。
+- 「精确 slug 优先」：`company.logoSlugs` / `logoSlug` / `--hints` 中的候选先串行快试、不加版本后缀；未命中才按 id / wordmark / name 派生并追加 `-1…-3` 后缀并发探测，命中即停。
+- 清洗：剥脚本与事件属性、去外链 `<image>` / `<style>`、补 `xmlns`，**保证只有一个 `viewBox`**（重复 `viewBox` 会让浏览器判定 SVG 无效并整片破图）。
+- `--hints` 格式为 `{"company-id": ["slug-a", "slug-b"]}`；已有本地文件默认跳过，`--force` 重抓、`--offline` 只统计。产物 `<logos_dir>/<id>.svg`，站里没有的品牌写入 `missing-logos.json`。
+
+### 第二层 · 企业官网官方 SVG（缺图品牌兜底）
+
+**「搜索官网」由 Agent 完成，不由脚本完成**：实测当前网络下 Google / DuckDuckGo 直连返回 000、Bing 返回 302，抓搜索引擎 HTML 既不可靠也违反其条款；WorkBuddy 的搜索能力可用。对 `missing-logos.json` 里每个 id 查官网（地方银行域名常与品牌名不同，例如琉球银行是 `ryugin.co.jp`），结果写入 `company.officialSite`；若已找到 Logo 直链写 `company.officialLogoUrl`；也可集中写进 `--sites`：
+
+```json
+{
+  "keyence": "https://www.keyence.com/",
+  "takeda": { "site": "https://www.takeda.com/", "logoUrl": "https://.../logo.svg" }
+}
+```
+
+```bash
+python3 <skill>/scripts/fetch_official_logos.py \
+  --data <dataset.json> --out-dir <logos_dir> \
+  --sites <sites.json> --only-missing \
+  --manifest <output_dir>/official-logos.json
+```
+
+- 脚本只做确定性工作：抓官网首页 → 从 `src` / `data-src` / `href` / `srcset` / CSS `url()` 提取 `.svg` 引用 → 按文件名打分（含 logo/brand/wordmark 加分；含 icon/btn/banner/social 等硬排除）→ 首页无 Logo 命名 SVG 时限量探测常见路径。
+- **校验闸门**（任一不过即丢弃）：合法 XML、根为 `<svg>`、恰好一个 `viewBox`、宽高比 ≤ 16 且不是小方形图标、至少 2 个矢量元素、无 `<image>` / `<script>` / `foreignObject` / 外部 `href`、`is_fake_logo()` 判定非伪 Logo。
+- 横向字标往往很扁（KEYENCE 官方 Logo 为 90.8×16），**不要按「最小边 ≥ 20」一刀切**；要排除的是接近方形的小图标 / favicon。
+- 只采用官网页面自身引用的 SVG：文件名是 hash 的云端插图、UI 图标、内联装饰 SVG 一律不认。未验证品牌写入 manifest 的 `unverified`（附每个候选的失败原因），**不写 `<id>.svg`**。
+- `--dry-run` 只探测不落盘；`--force` 覆盖；`--max-candidates` 限流。官网在当前代理不可达（如 `ryugin.co.jp` 返回 000/502）属预期降级。
+
+### 第三层 · 中性占位
+
+两层都取不到的品牌显示无字母、无文字的斜纹中性占位，**绝不生成替代 Logo**。也可人工把官方 SVG 放进 `<logos_dir>/<id>.svg`，或用 `company.logoFile` / `logoUrl`（配 `--download-logos`）补齐。网络受限时保留缺图清单继续构建，并在交付说明列出待补品牌。
 
 ## Step 2 — 数据集校验
 
